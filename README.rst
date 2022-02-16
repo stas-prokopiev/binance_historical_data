@@ -24,11 +24,10 @@ binance_historical_data
 Short Overview.
 =========================
 binance_historical_data is a python package (**py>=3.7**)
-which makes dumping of historical crypto data from binance server as simple as possible.
+which makes download of historical crypto data (prices and volumes) from binance server as simple as possible.
 **You don't even need to have an account at binance.com to dump all history of crypto data**
 
-
-| Using this package you will be able to have full binance historical data with only 3 lines of python code
+| Using this package you will be able to have full historical data of prices and volumes with only 3 lines of python code
 | And if you need to update already dumped data then once again 3 lines of python code will do the job
 
 | **Limitations**: The previous day data appear on binance server a few minutes after 0 a.m. UTC
@@ -41,13 +40,11 @@ Installation via pip:
 
     pip install binance_historical_data
 
-
 How to use it
 ===========================
 
-
-Init main object: **data_dumper**
------------------------------------
+Initialize main object: **data_dumper**
+---------------------------------------------
 
 .. code-block:: python
 
@@ -64,6 +61,7 @@ Arguments:
     | (string) Path to folder where to dump the historical data
 #. **str_data_frequency**:
     | (string) One of [1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h]
+    | Frequency of price-volume data candles to get
 
 The main method to dump data
 -----------------------------
@@ -80,18 +78,49 @@ The main method to dump data
 Arguments:
 
 #. **list_tickers=None**:
-    | list
-    | Trading pairs for which to dump data
+    | (list) Trading pairs for which to dump data
     | if equals to None all **USDT** pairs will be used
 #. **date_start=None**:
-    | datetime.date
-    | The date from which to start dump
+    | (datetime.date) The date from which to start dump
 #. **date_end=True=None**:
-    | datetime.date
-    | The last date for which to dump data
+    | (datetime.date) The last date for which to dump data
 #. **is_to_update_existing=False**:
-    | bool
-    | Flag if you want to update data if it's already exists
+    | (bool) Flag if you want to update data if it's already exists
+
+
+Output format
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+| path_dir_where_to_dump
+| --> ticker_1 (BTCUSDT)
+| ----> 1m
+| ------> daily
+| --------> BTCUSDT-1m-2022-02-01.csv
+| --------> BTCUSDT-1m-2022-02-02.csv
+| --------> ...
+| ------> monthly
+| --------> BTCUSDT-1m-2017-11.csv
+| --------> BTCUSDT-1m-2017-12.csv
+| --------> ...
+| --> ticker_2 (BTCUSDT)
+| ----> ...
+| --> ...
+
+csv file columns
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+| "Open time" - Timestamp
+| "Open"
+| "High"
+| "Low"
+| "Close"
+| "Volume"
+| "Close time" - Timestamp
+| "Quote asset volume"
+| "Number of trades"
+| "Taker buy base asset volume"
+| "Taker buy quote asset volume"
+| "Ignore"
 
 Examples
 ===========================

@@ -27,6 +27,8 @@ binance_historical_data is a python package (**py>=3.7**)
 which makes download of historical crypto data (prices and volumes) from binance server as simple as possible.
 **You don't even need to have an account at binance.com to dump all history of crypto data**
 
+Data is taken from here: https://data.binance.vision/?prefix=data/spot/
+
 | Using this package you will be able to have full historical data of prices and volumes with only 3 lines of python code
 | And if you need to update already dumped data then once again 3 lines of python code will do the job
 

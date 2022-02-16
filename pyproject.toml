@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "binance_historical_data"
+version = "0.1.0"
+description = ""
+authors = ["stanislav <stas.prokopiev@gmail.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+tqdm = "^4.62.3"
+local-simple-database = "^0.1.10"
+char = "^0.1.2"
+mpire = "^2.3.3"
+
+[tool.poetry.dev-dependencies]
+pytest = "^5.2"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

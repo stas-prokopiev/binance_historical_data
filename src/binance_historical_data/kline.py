@@ -25,19 +25,19 @@ class CandleDataDumper():
 
     def __init__(
             self,
-            path_base_dir_where_to_dump,
+            path_dir_where_to_dump,
             str_data_frequency="1m",
     ) -> None:
         """Init dumper object
 
         Args:
-            path_base_dir_where_to_dump (str): Folder where to dump data
+            path_dir_where_to_dump (str): Folder where to dump data
             str_data_frequency (str): \
                 Data frequency. [1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h]
                 Defaults to "1m".
         """
         self._base_url = "https://data.binance.vision"
-        self.path_base_dir_where_to_dump = path_base_dir_where_to_dump
+        self.path_dir_where_to_dump = path_dir_where_to_dump
         self.dict_new_points_saved_by_ticker = defaultdict(dict)
         self.str_data_frequency = str_data_frequency
 
@@ -170,15 +170,15 @@ class CandleDataDumper():
         """
         list_tickers_dirs = [
             d
-            for d in os.listdir(self.path_base_dir_where_to_dump)
-            if os.path.isdir(os.path.join(self.path_base_dir_where_to_dump, d))
+            for d in os.listdir(self.path_dir_where_to_dump)
+            if os.path.isdir(os.path.join(self.path_dir_where_to_dump, d))
         ]
         LOGGER.info("Delete old daily data for which there is monthly data")
         dict_files_deleted_by_ticker = defaultdict(int)
-        for str_ticker in tqdm(list_tickers_dirs):
+        for str_ticker in tqdm(list_tickers_dirs, leave=False):
             LDD = LocalDictDatabase(
                 str_path_database_dir=os.path.join(
-                    self.path_base_dir_where_to_dump, str_ticker),
+                    self.path_dir_where_to_dump, str_ticker),
                 default_value=list(),
             )
             list_saved_days = LDD["dict_list_dates_with_saved_data"]["daily"]
@@ -234,7 +234,7 @@ class CandleDataDumper():
         )
         LDD = LocalDictDatabase(
             str_path_database_dir=os.path.join(
-                self.path_base_dir_where_to_dump, str_ticker),
+                self.path_dir_where_to_dump, str_ticker),
             default_value=list(),
         )
         list_dates_with_data = \
@@ -346,7 +346,7 @@ class CandleDataDumper():
             str_timeperiod_per_file="monthly",
     ):
         """Get folder where to save local data for asked ticker"""
-        str_dir_raw = self.path_base_dir_where_to_dump
+        str_dir_raw = self.path_dir_where_to_dump
         str_dir_raw = os.path.join(str_dir_raw, str_ticker)
         str_dir_raw = os.path.join(str_dir_raw, self.str_data_frequency)
         str_dir_raw = os.path.join(str_dir_raw, str_timeperiod_per_file)

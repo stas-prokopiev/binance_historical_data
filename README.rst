@@ -142,7 +142,7 @@ How to update data (get all new data)
 
 | It's as easy as running the exactly same method **dump_data** once again
 | The **data_dumper** will find all the dates for which data already exists
-| and try to dump only the new data
+| and will try to dump only the new data
 
 .. code-block:: python
 

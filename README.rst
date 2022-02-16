@@ -137,14 +137,16 @@ Please be advised that the first data dump for all trading pairs might take some
 
     data_dumper.dump_data()
 
-How to update data dump and get all new data
+How to update data (get all new data)
 ----------------------------------------------
+
+It's as easy as running the exactly same method **dump_data** once again
 
 .. code-block:: python
 
     data_dumper.dump_data()
 
-How to update (reload) all data for the asked time period
+How to update (reload) data for the asked time period
 ----------------------------------------------------------
 
 .. code-block:: python

@@ -255,6 +255,16 @@ class CandleDataDumper():
             (str_ticker, date_obj, str_timeperiod_per_file)
             for date_obj in list_dates_cleared
         ]
+        # 2) Create path to file where to save data
+        str_dir_where_to_save = self._get_local_dir_to_save_data(
+            str_ticker,
+            str_timeperiod_per_file=str_timeperiod_per_file,
+        )
+        if not os.path.exists(str_dir_where_to_save):
+            try:
+                os.makedirs(str_dir_where_to_save)
+            except FileExistsError:
+                pass
         threads = min(len(list_args), 60)
         with WorkerPool(n_jobs=threads, start_method="threading") as pool:
             list_saved_dates = list(tqdm(
@@ -303,13 +313,10 @@ class CandleDataDumper():
             str_timeperiod_per_file=str_timeperiod_per_file,
         )
         str_url_file_to_download = os.path.join(path_to_data, file_name)
-        # 2) Create path to file where to save data
         str_dir_where_to_save = self._get_local_dir_to_save_data(
             str_ticker,
             str_timeperiod_per_file=str_timeperiod_per_file,
         )
-        if not os.path.exists(str_dir_where_to_save):
-            os.makedirs(str_dir_where_to_save)
         # 3) Download file and unzip it
         str_path_where_to_save = os.path.join(str_dir_where_to_save, file_name)
         if not self._download_raw_file(

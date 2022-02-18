@@ -178,7 +178,9 @@ class CandleDataDumper():
         for str_ticker in tqdm(list_tickers_dirs, leave=False):
             LDD = LocalDictDatabase(
                 str_path_database_dir=os.path.join(
-                    self.path_dir_where_to_dump, str_ticker),
+                    self.path_dir_where_to_dump,
+                    str_ticker,
+                    self.str_data_frequency),
                 default_value=list(),
             )
             list_saved_days = LDD["dict_list_dates_with_saved_data"]["daily"]

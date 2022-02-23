@@ -167,7 +167,7 @@ class BinanceDataDumper():
                 timeperiod_per_file="daily"
             )
             for date_saved_day in list_saved_days_dates:
-                date_saved_day_tmp = date_saved_day.day = 1
+                date_saved_day_tmp = date_saved_day.replace(day=1)
                 if date_saved_day_tmp not in list_saved_months_dates:
                     continue
                 str_folder = self.get_local_dir_to_data(

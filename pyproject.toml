@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "binance_historical_data"
-version = "0.1.4"
+version = "0.1.5"
 description = ""
 authors = ["stanislav <stas.prokopiev@gmail.com>"]
 readme = "README.rst"

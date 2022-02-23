@@ -5,10 +5,10 @@
 
 # Local imports
 from . import logger
-from .kline import CandleDataDumper
+from .data_dumper import BinanceDataDumper
 
 # Global constants
-__all__ = ["CandleDataDumper"]
+__all__ = ["BinanceDataDumper"]
 
 logger.initialize_project_logger(
     name=__name__,

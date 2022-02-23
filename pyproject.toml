@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "binance_historical_data"
-version = "0.1.3"
+version = "0.1.4"
 description = ""
 authors = ["stanislav <stas.prokopiev@gmail.com>"]
 readme = "README.rst"
@@ -10,7 +10,6 @@ repository = "https://github.com/stas-prokopiev/binance_historical_data"
 [tool.poetry.dependencies]
 python = "^3.7"
 tqdm = "^4.62.3"
-local-simple-database = "^0.1.10"
 char = "^0.1.2"
 mpire = "^2.3.3"
 

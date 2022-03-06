@@ -72,7 +72,15 @@ class BinanceDataDumper():
         ))
 
     def get_local_dir_to_data(self, ticker, timeperiod_per_file,):
-        """Path to directory where ticker data is dumped"""
+        """Path to directory where ticker data is saved
+
+        Args:
+            ticker (str): trading pair
+            timeperiod_per_file (str): timeperiod per 1 file in [daily, monthly]
+
+        Returns:
+            str: path to folder where to save data
+        """
         path_folder_suffix = self._get_path_suffix_to_dir_with_data(
             timeperiod_per_file, ticker)
         return os.path.join(
@@ -112,7 +120,15 @@ class BinanceDataDumper():
             ticker,
             timeperiod_per_file="monthly"
     ):
-        """Get list with all dates for which there is saved data"""
+        """Get list with all dates for which there is saved data
+
+        Args:
+            ticker (str): trading pair
+            timeperiod_per_file (str): timeperiod per 1 file in [daily, monthly]
+
+        Returns:
+            list[datetime.date]: dates with saved data
+        """
         date_start = datetime.date(year=2017, month=1, day=1)
         date_end = datetime.datetime.utcnow().date()
         list_dates = self._create_list_dates_for_timeperiod(
@@ -139,7 +155,14 @@ class BinanceDataDumper():
         return list_dates_with_data
 
     def get_all_tickers_with_data(self, timeperiod_per_file="daily"):
-        """Get all tickers for which data was dumped"""
+        """Get all tickers for which data was dumped
+
+        Args:
+            timeperiod_per_file (str): timeperiod per 1 file in [daily, monthly]
+
+        Returns:
+            list[str]: all tickers with data
+        """
         folder_path = os.path.join(self.path_dir_where_to_dump, self._asset_class)
         folder_path = os.path.join(folder_path, timeperiod_per_file)
         folder_path = os.path.join(folder_path, self._data_type)

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "binance_historical_data"
-version = "0.1.5"
+version = "0.1.6"
 description = ""
 authors = ["stanislav <stas.prokopiev@gmail.com>"]
 readme = "README.rst"
@@ -12,6 +12,7 @@ python = "^3.7"
 tqdm = "^4.62.3"
 char = "^0.1.2"
 mpire = "^2.3.3"
+ipywidgets = "^7.6.5"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"

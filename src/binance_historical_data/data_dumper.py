@@ -5,6 +5,7 @@ import urllib.request
 import json
 import logging
 from collections import defaultdict
+from collections import Counter
 import zipfile
 import datetime
 from dateutil.relativedelta import relativedelta
@@ -339,18 +340,30 @@ class BinanceDataDumper():
         )
         str_dir_where_to_save = os.path.join(
             self.path_dir_where_to_dump, path_folder_suffix)
-        path_where_to_save = os.path.join(
+        path_zip_raw_file = os.path.join(
             str_dir_where_to_save, file_name + ".zip")
         # 2) Create URL to file to download
         url_file_to_download = os.path.join(
             self._base_url, path_folder_suffix, file_name + ".zip")
         # 3) Download file and unzip it
-        if not self._download_raw_file(url_file_to_download, path_where_to_save):
+        if not self._download_raw_file(url_file_to_download, path_zip_raw_file):
             return None
-        with zipfile.ZipFile(path_where_to_save, 'r') as zip_ref:
-            zip_ref.extractall(os.path.dirname(path_where_to_save))
-        # 4) Delete the zip archive
-        os.remove(path_where_to_save)
+        # 4) Extract zip archive
+        try:
+            with zipfile.ZipFile(path_zip_raw_file, 'r') as zip_ref:
+                zip_ref.extractall(os.path.dirname(path_zip_raw_file))
+        except Exception as ex:
+            LOGGER.warning(
+                "Unable to unzip file %s with error: %s", path_zip_raw_file, ex)
+            return None
+        # 5) Delete the zip archive
+        try:
+            os.remove(path_zip_raw_file)
+        except Exception as ex:
+            LOGGER.warning(
+                "Unable to delete zip file %s with error: %s",
+                path_zip_raw_file, ex)
+            return None
         return date_obj
 
     def _get_path_suffix_to_dir_with_data(self, timeperiod_per_file, ticker):
@@ -396,38 +409,71 @@ class BinanceDataDumper():
             LOGGER.debug(
                 "[WARNING] File not found: %s", str_url_path_to_file)
             return 0
+        except Exception as ex:
+            LOGGER.warning("Unable to download raw file: %s", ex)
+            return 0
         return 1
 
     def _print_dump_statistics(self):
         """Print the latest dump statistics"""
         LOGGER.info(
-            "Tried to dump data for %d tickers",
+            "Tried to dump data for %d tickers:",
             len(self.dict_new_points_saved_by_ticker)
         )
         if len(self.dict_new_points_saved_by_ticker) < 50:
-            for ticker in self.dict_new_points_saved_by_ticker:
-                dict_stats = self.dict_new_points_saved_by_ticker[ticker]
-                LOGGER.info(
-                    "---> For %s new data saved for: %d months %d days",
-                    ticker,
-                    dict_stats["monthly"],
-                    dict_stats["daily"],
-                )
+            self._print_full_dump_statististics()
         else:
-            int_non_empty_dump_res = 0
-            int_empty_dump_res = 0
-            for ticker in self.dict_new_points_saved_by_ticker:
-                dict_stats = self.dict_new_points_saved_by_ticker[ticker]
-                if dict_stats["monthly"] or dict_stats["daily"]:
-                    int_non_empty_dump_res += 1
-                else:
-                    int_empty_dump_res += 1
+            self._print_short_dump_statististics()
+
+    def _print_full_dump_statististics(self):
+        """"""
+        for ticker in self.dict_new_points_saved_by_ticker:
+            dict_stats = self.dict_new_points_saved_by_ticker[ticker]
             LOGGER.info(
-                "---> NEW Data WAS dumped for %d trading pairs",
-                int_non_empty_dump_res)
-            LOGGER.info(
-                "---> NEW Data WASN'T dumped for %d trading pairs",
-                int_empty_dump_res)
+                "---> For %s new data saved for: %d months %d days",
+                ticker,
+                dict_stats["monthly"],
+                dict_stats["daily"],
+            )
+
+    def _print_short_dump_statististics(self):
+        """"""
+        # Gather stats
+        int_non_empty_dump_res = 0
+        int_empty_dump_res = 0
+        list_months_saved = []
+        list_days_saved = []
+        for ticker in self.dict_new_points_saved_by_ticker:
+            dict_stats = self.dict_new_points_saved_by_ticker[ticker]
+            list_months_saved.append(dict_stats.get("monthly", 0))
+            list_days_saved.append(dict_stats.get("daily", 0))
+            if dict_stats["monthly"] or dict_stats["daily"]:
+                int_non_empty_dump_res += 1
+            else:
+                int_empty_dump_res += 1
+        #####
+        # Print Stats
+        LOGGER.info("---> General stats:")
+        LOGGER.info(
+            "------> NEW Data WAS dumped for %d trading pairs",
+            int_non_empty_dump_res)
+        LOGGER.info(
+            "------> NEW Data WASN'T dumped for %d trading pairs",
+            int_empty_dump_res)
+        #####
+        LOGGER.info("---> New months saved:")
+        counter_months = Counter(list_months_saved)
+        for value, times in counter_months.most_common(5):
+            LOGGER.info("------> For %d tickers saved: %s months", times, value)
+        if len(counter_months) > 5:
+            LOGGER.info("------> ...")
+        LOGGER.info("---> New days saved:")
+        counter_days = Counter(list_days_saved)
+        for value, times in counter_days.most_common(5):
+            LOGGER.info("------> For %d tickers saved: %s days", times, value)
+        if len(counter_days) > 5:
+            LOGGER.info("------> ...")
+        LOGGER.info("=" * 79)
 
     def _get_list_trading_pairs_to_download(self, list_tickers=None):
         """

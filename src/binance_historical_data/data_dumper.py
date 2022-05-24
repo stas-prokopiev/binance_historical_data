@@ -92,6 +92,7 @@ class BinanceDataDumper():
             ticker,
             date_obj,
             timeperiod_per_file="monthly",
+            extension="csv",
     ):
         """Create file name in the format it's named on the binance server"""
 
@@ -102,11 +103,11 @@ class BinanceDataDumper():
 
         if self._asset_class == "spot":
             if self._data_type == "klines":
-                return f"{ticker}-{self._data_frequency}-{str_date}"
+                return f"{ticker}-{self._data_frequency}-{str_date}.{extension}"
             elif self._data_type == "trades":
-                return f"{ticker}-trades-{str_date}"
+                return f"{ticker}-trades-{str_date}.{extension}"
             elif self._data_type == "aggTrades":
-                return f"{ticker}-aggTrades-{str_date}"
+                return f"{ticker}-aggTrades-{str_date}.{extension}"
             else:
                 raise ValueError(
                     f"There is no such data type as: {self._data_type} "
@@ -146,9 +147,10 @@ class BinanceDataDumper():
                 ticker,
                 date_obj,
                 timeperiod_per_file=timeperiod_per_file,
+                extension="csv",
             )
             path_where_to_save = os.path.join(
-                str_dir_where_to_save, file_name + ".csv")
+                str_dir_where_to_save, file_name)
             if os.path.exists(path_where_to_save):
                 list_dates_with_data.append(date_obj)
 
@@ -202,6 +204,7 @@ class BinanceDataDumper():
                     ticker,
                     date_saved_day,
                     timeperiod_per_file="daily",
+                    extension="csv",
                 )
                 try:
                     os.remove(os.path.join(str_folder, str_filename))
@@ -360,14 +363,15 @@ class BinanceDataDumper():
             ticker,
             date_obj,
             timeperiod_per_file=timeperiod_per_file,
+            extension="zip",
         )
         str_dir_where_to_save = os.path.join(
             self.path_dir_where_to_dump, path_folder_suffix)
         path_zip_raw_file = os.path.join(
-            str_dir_where_to_save, file_name + ".zip")
+            str_dir_where_to_save, file_name)
         # 2) Create URL to file to download
         url_file_to_download = os.path.join(
-            self._base_url, path_folder_suffix, file_name + ".zip")
+            self._base_url, path_folder_suffix, file_name)
         # 3) Download file and unzip it
         if not self._download_raw_file(url_file_to_download, path_zip_raw_file):
             return None

@@ -1,6 +1,7 @@
 """Module with class to download candle historical data from binance"""
 # Standard library imports
 import os
+from typing import Optional, Any, Union
 import urllib.request
 import json
 import logging
@@ -168,12 +169,12 @@ class BinanceDataDumper():
         folder_path = os.path.join(self.path_dir_where_to_dump, self._asset_class)
         folder_path = os.path.join(folder_path, timeperiod_per_file)
         folder_path = os.path.join(folder_path, self._data_type)
-        list_tickers = [
+        tickers = [
             d
             for d in os.listdir(folder_path)
             if os.path.isdir(os.path.join(folder_path, d))
         ]
-        return list_tickers
+        return tickers
 
     def delete_outdated_daily_results(self):
         """
@@ -181,9 +182,9 @@ class BinanceDataDumper():
         """
         LOGGER.info("Delete old daily data for which there is monthly data")
         dict_files_deleted_by_ticker = defaultdict(int)
-        list_tickers = self.get_all_tickers_with_data(
+        tickers = self.get_all_tickers_with_data(
             timeperiod_per_file="daily")
-        for ticker in tqdm(list_tickers, leave=False):
+        for ticker in tqdm(tickers, leave=False):
             list_saved_months_dates = self.get_all_dates_with_data_for_ticker(
                 ticker,
                 timeperiod_per_file="monthly"
@@ -222,16 +223,17 @@ class BinanceDataDumper():
     @char
     def dump_data(
             self,
-            list_tickers=None,
+            tickers=None,
             date_start=None,
             date_end=None,
             is_to_update_existing=False,
             int_max_tickers_to_get=None,
+            tickers_to_exclude : Optional[list[str]] = None,
     ):
         """Main method to dump new of update existing historical data
 
         Args:
-            list_tickers (list[str]):\
+            tickers (list[str]):\
                 list trading pairs for which to dump data\
                 by default all ****USDT pairs will be taken
             date_start (datetime.date): Date from which to start dump
@@ -242,7 +244,7 @@ class BinanceDataDumper():
         """
         self.dict_new_points_saved_by_ticker.clear()
         list_trading_pairs = self._get_list_trading_pairs_to_download(
-            list_tickers=list_tickers)
+            tickers=tickers, tickers_to_exclude=tickers_to_exclude)
         if int_max_tickers_to_get:
             list_trading_pairs = list_trading_pairs[:int_max_tickers_to_get]
         LOGGER.info(
@@ -502,22 +504,43 @@ class BinanceDataDumper():
             LOGGER.info("------> ...")
         LOGGER.info("=" * 79)
 
-    def _get_list_trading_pairs_to_download(self, list_tickers=None):
+    def _get_list_trading_pairs_to_download(
+            self,
+            tickers=None,
+            tickers_to_exclude=None
+    ):
         """
         Create list of tickers for which to get data (by default all **USDT)
         """
-        list_all_trading_pairs = self.get_list_all_trading_pairs()
-        if list_tickers:
-            return [
+        LOGGER.info("Choose tickers to dump:")
+        all_tickers = self.get_list_all_trading_pairs()
+        LOGGER.info("---> Found overall tickers: %d", len(all_tickers))
+
+        if tickers:
+            LOGGER.info("---> Filter to asked tickers: %d", len(tickers))
+            tickers_to_use = [
                 ticker
-                for ticker in list_all_trading_pairs
-                if ticker in list_tickers
+                for ticker in all_tickers
+                if ticker in tickers
             ]
-        return [
-            ticker
-            for ticker in list_all_trading_pairs
-            if ticker.endswith("USDT")
-        ]
+        else:
+            LOGGER.info("---> Filter to USDT tickers")
+            tickers_to_use = [
+                ticker
+                for ticker in all_tickers
+                if ticker.endswith("USDT")
+            ]
+        LOGGER.info("------> Tickers left: %d", len(tickers_to_use))
+        #####
+        if tickers_to_exclude:
+            LOGGER.info("---> Exclude asked tickers: %d", len(tickers_to_exclude))
+            tickers_to_use = [
+                ticker
+                for ticker in tickers_to_use
+                if ticker not in tickers_to_exclude
+            ]
+            LOGGER.info("------> Tickers left: %d", len(tickers_to_use))
+        return tickers_to_use
 
     @staticmethod
     def _create_list_dates_for_timeperiod(

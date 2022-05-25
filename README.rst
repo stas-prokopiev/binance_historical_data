@@ -77,15 +77,16 @@ Arguments:
 .. code-block:: python
 
     data_dumper.dump_data(
-        list_tickers=None,
+        tickers=None,
         date_start=None,
         date_end=None,
         is_to_update_existing=False,
+        tickers_to_exclude=["UST"],
     )
 
 Arguments:
 
-#. **list_tickers=None**:
+#. **tickers=None**:
     | (list) Trading pairs for which to dump data
     | *if equals to None* - all **USDT** pairs will be used
 #. **date_start=None**:
@@ -96,6 +97,8 @@ Arguments:
     | *if equals to None* - Today's date will be used
 #. **is_to_update_existing=False**:
     | (bool) Flag if you want to update the data if it's already exist
+#. **tickers_to_exclude=None**:
+    | (list) Tickers to exclude from dump
 
 
 2) Delete outdated daily results

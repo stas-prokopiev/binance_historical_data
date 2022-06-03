@@ -1,7 +1,7 @@
 """Module with class to download candle historical data from binance"""
 # Standard library imports
 import os
-from typing import Optional, Any, Union
+# from typing import Optional, Any, Union
 import urllib.request
 import json
 import logging
@@ -228,7 +228,7 @@ class BinanceDataDumper():
             date_end=None,
             is_to_update_existing=False,
             int_max_tickers_to_get=None,
-            tickers_to_exclude : Optional[list[str]] = None,
+            tickers_to_exclude=None,
     ):
         """Main method to dump new of update existing historical data
 
@@ -236,6 +236,8 @@ class BinanceDataDumper():
             tickers (list[str]):\
                 list trading pairs for which to dump data\
                 by default all ****USDT pairs will be taken
+            tickers_to_exclude (list[str]):\
+                list trading pairs which to exclude from dump
             date_start (datetime.date): Date from which to start dump
             date_end (datetime.date): The last date for which to dump data
             is_to_update_existing (bool): \

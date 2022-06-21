@@ -278,7 +278,7 @@ class BinanceDataDumper():
             # 2) Download all daily date
             self._download_data_for_1_ticker(
                 ticker,
-                date_start=date_end_first_day_of_month,
+                date_start=date_start,
                 date_end=(date_end-relativedelta(days=1)),
                 timeperiod_per_file="daily",
                 is_to_update_existing=is_to_update_existing,

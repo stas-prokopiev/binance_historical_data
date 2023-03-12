@@ -24,10 +24,10 @@ LOGGER = logging.getLogger(__name__)
 
 class BinanceDataDumper():
 
-    _ASSET_CLASSES = ("spot")  # , "futures"
+    _ASSET_CLASSES = ("spot", "futures\\um")  # , "futures"
     _DICT_DATA_TYPES_BY_ASSET = {
         "spot": ("aggTrades", "klines", "trades"),
-        # "futures": (),
+        "futures\\um": ("klines"),
     }
 
     def __init__(
@@ -115,8 +115,12 @@ class BinanceDataDumper():
                     "for spot data"
                 )
         else:
-            raise NotImplemented("Sorry, futures are not supported yet!!!")
-
+            if self._data_type == "klines":
+                return f"{ticker}-{self._data_frequency}-{str_date}.{extension}"
+        #     raise NotImplemented("Sorry, futures are not supported yet!!!")
+    
+        
+        
     def get_all_dates_with_data_for_ticker(
             self,
             ticker,
@@ -425,7 +429,9 @@ class BinanceDataDumper():
                     "for spot data"
                 )
         else:
-            raise NotImplemented("Sorry, futures are not supported yet!!!")
+            if self._data_type == "klines":
+                folder_path = os.path.join(folder_path, self._data_frequency)
+            # raise NotImplemented("Sorry, futures are not supported yet!!!")
         return folder_path
 
     @staticmethod

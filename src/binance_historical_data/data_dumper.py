@@ -22,18 +22,22 @@ from mpire import WorkerPool
 LOGGER = logging.getLogger(__name__)
 
 
-class BinanceDataDumper():
-
-    _ASSET_CLASSES = ("spot")  # , "futures"
+class BinanceDataDumper:
+    _FUTURES_ASSET_CLASSES = ("um", "cm")
+    _ASSET_CLASSES = ("spot",)
     _DICT_DATA_TYPES_BY_ASSET = {
         "spot": ("aggTrades", "klines", "trades"),
-        # "futures": (),
+        "cm": ("aggTrades", "klines", "trades", "indexPriceKlines", "markPriceKlines", "premiumIndexKlines"),
+        "um": ("aggTrades", "klines", "trades", "indexPriceKlines", "markPriceKlines", "premiumIndexKlines", "metrics")
     }
+    _DATA_FREQUENCY_NEEDED_FOR_TYPE = ("klines", "indexPriceKlines", "markPriceKlines", "premiumIndexKlines")
+    _DATA_FREQUENCY_ENUM = ('1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '8h', '12h',
+                            '1d', '3d', '1w', '1mo')
 
     def __init__(
             self,
             path_dir_where_to_dump,
-            asset_class="spot",  # spot, futures
+            asset_class="spot",  # spot, um, cm
             data_type="klines",  # aggTrades, klines, trades
             data_frequency="1m",  # argument for data_type="klines"
     ) -> None:
@@ -47,15 +51,25 @@ class BinanceDataDumper():
                 Data frequency. [1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h]
                 Defaults to "1m".
         """
-        if asset_class not in self._ASSET_CLASSES:
+        if asset_class not in (self._ASSET_CLASSES + self._FUTURES_ASSET_CLASSES):
             raise ValueError(
                 f"Unknown asset class: {asset_class} "
-                f"not in {self._ASSET_CLASSES}")
+                f"not in {self._ASSET_CLASSES + self._FUTURES_ASSET_CLASSES}")
 
         if data_type not in self._DICT_DATA_TYPES_BY_ASSET[asset_class]:
             raise ValueError(
                 f"Unknown data type: {data_type} "
                 f"not in {self._DICT_DATA_TYPES_BY_ASSET[asset_class]}")
+
+        if data_type in self._DATA_FREQUENCY_NEEDED_FOR_TYPE:
+            if data_frequency not in self._DATA_FREQUENCY_ENUM:
+                raise ValueError(
+                    f"Unknown data frequency: {data_frequency} "
+                    f"not in {self._DATA_FREQUENCY_ENUM}")
+            self._data_frequency = data_frequency
+        else:
+            self._data_frequency = ""
+
         self.path_dir_where_to_dump = path_dir_where_to_dump
         self.dict_new_points_saved_by_ticker = defaultdict(dict)
         self._base_url = "https://data.binance.vision/data"
@@ -65,8 +79,15 @@ class BinanceDataDumper():
 
     def get_list_all_trading_pairs(self):
         """Get all trading pairs available at binance now"""
-        response = urllib.request.urlopen(
-            "https://api.binance.com/api/v3/exchangeInfo").read()
+
+        if self._asset_class == 'um':
+            response = urllib.request.urlopen("https://fapi.binance.com/fapi/v1/exchangeInfo").read()
+        elif self._asset_class == 'cm':
+            response = urllib.request.urlopen("https://dapi.binance.com/dapi/v1/exchangeInfo").read()
+        else:
+            response = urllib.request.urlopen("https://api.binance.com/api/v3/exchangeInfo").read()
+            return list(map(lambda symbol: symbol['symbol'], json.loads(response)['symbols']))
+
         return list(map(
             lambda symbol: symbol['symbol'],
             json.loads(response)['symbols']
@@ -102,20 +123,7 @@ class BinanceDataDumper():
         else:
             str_date = date_obj.strftime("%Y-%m-%d")
 
-        if self._asset_class == "spot":
-            if self._data_type == "klines":
-                return f"{ticker}-{self._data_frequency}-{str_date}.{extension}"
-            elif self._data_type == "trades":
-                return f"{ticker}-trades-{str_date}.{extension}"
-            elif self._data_type == "aggTrades":
-                return f"{ticker}-aggTrades-{str_date}.{extension}"
-            else:
-                raise ValueError(
-                    f"There is no such data type as: {self._data_type} "
-                    "for spot data"
-                )
-        else:
-            raise NotImplemented("Sorry, futures are not supported yet!!!")
+        return f"{ticker}-{self._data_frequency if self._data_frequency else self._data_type}-{str_date}.{extension}"
 
     def get_all_dates_with_data_for_ticker(
             self,
@@ -268,18 +276,19 @@ class BinanceDataDumper():
             year=date_end.year, month=date_end.month, day=1)
         for ticker in tqdm(list_trading_pairs, leave=True, desc="Tickers"):
             # 1) Download all monthly data
-            self._download_data_for_1_ticker(
-                ticker,
-                date_start=date_start,
-                date_end=(date_end_first_day_of_month-relativedelta(days=1)),
-                timeperiod_per_file="monthly",
-                is_to_update_existing=is_to_update_existing,
-            )
+            if self._data_type != "metrics":
+                self._download_data_for_1_ticker(
+                    ticker,
+                    date_start=date_start,
+                    date_end=(date_end_first_day_of_month - relativedelta(days=1)),
+                    timeperiod_per_file="monthly",
+                    is_to_update_existing=is_to_update_existing,
+                )
             # 2) Download all daily date
             self._download_data_for_1_ticker(
                 ticker,
-                date_start=date_end_first_day_of_month,
-                date_end=(date_end-relativedelta(days=1)),
+                date_start=date_end_first_day_of_month if self._data_type != "metrics" else date_start,
+                date_end=(date_end - relativedelta(days=1)),
                 timeperiod_per_file="daily",
                 is_to_update_existing=is_to_update_existing,
             )
@@ -408,24 +417,16 @@ class BinanceDataDumper():
             str: suffix - https://data.binance.vision/data/ + suffix /filename
         """
         folder_path = ""
+        if self._asset_class in self._FUTURES_ASSET_CLASSES:
+            folder_path = os.path.join(folder_path, "futures")
         folder_path = os.path.join(folder_path, self._asset_class)
         folder_path = os.path.join(folder_path, timeperiod_per_file)
         folder_path = os.path.join(folder_path, self._data_type)
         folder_path = os.path.join(folder_path, ticker)
-        if self._asset_class == "spot":
-            if self._data_type == "klines":
-                folder_path = os.path.join(folder_path, self._data_frequency)
-            elif self._data_type == "trades":
-                pass
-            elif self._data_type == "aggTrades":
-                pass
-            else:
-                raise ValueError(
-                    f"There is no such data type as: {self._data_type} "
-                    "for spot data"
-                )
-        else:
-            raise NotImplemented("Sorry, futures are not supported yet!!!")
+
+        if self._data_frequency:
+            folder_path = os.path.join(folder_path, self._data_frequency)
+
         return folder_path
 
     @staticmethod
@@ -463,8 +464,8 @@ class BinanceDataDumper():
             LOGGER.info(
                 "---> For %s new data saved for: %d months %d days",
                 ticker,
-                dict_stats["monthly"],
-                dict_stats["daily"],
+                dict_stats.get("monthly", 0),
+                dict_stats.get("daily", 0),
             )
 
     def _print_short_dump_statististics(self):

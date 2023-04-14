@@ -340,7 +340,7 @@ class BinanceDataDumper:
             except FileExistsError:
                 pass
         #####
-        threads = min(len(list_args), 60)
+        threads = min(len(list_args), 1 if "trades" in self._data_type.lower() else 10)
         with WorkerPool(n_jobs=threads, start_method="threading") as pool:
             list_saved_dates = list(tqdm(
                 pool.imap_unordered(
@@ -435,8 +435,22 @@ class BinanceDataDumper:
         LOGGER.debug("Download file from: %s", str_url_path_to_file)
         str_url_path_to_file = str_url_path_to_file.replace("\\", "/")
         try:
-            urllib.request.urlretrieve(
-                str_url_path_to_file, str_path_where_to_save)
+            if "trades" not in str_url_path_to_file.lower():
+                urllib.request.urlretrieve(str_url_path_to_file, str_path_where_to_save)
+            else:  # only show progress bar for trades data as the files are usually big
+                with tqdm(unit="B", unit_scale=True, miniters=1,
+                          desc="downloading: " + str_url_path_to_file.split("/")[-1]) as progress_bar:
+                    def progress_hook(count, block_size, total_size):
+                        current_size = block_size * count
+                        previous_progress = progress_bar.n / total_size * 100
+                        current_progress = current_size / total_size * 100
+
+                        if current_progress > previous_progress + 10:
+                            progress_bar.total = total_size
+                            progress_bar.update(current_size - progress_bar.n)
+
+                    urllib.request.urlretrieve(
+                        str_url_path_to_file, str_path_where_to_save, progress_hook)
         except urllib.error.URLError as ex:
             LOGGER.debug(
                 "[WARNING] File not found: %s", str_url_path_to_file)

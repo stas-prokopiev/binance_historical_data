@@ -1,8 +1,10 @@
 """Module with class to download candle historical data from binance"""
 # Standard library imports
 import os
+import re
 # from typing import Optional, Any, Union
 import urllib.request
+import xml.etree.ElementTree as ET
 import json
 import logging
 from collections import defaultdict
@@ -22,18 +24,22 @@ from mpire import WorkerPool
 LOGGER = logging.getLogger(__name__)
 
 
-class BinanceDataDumper():
-
-    _ASSET_CLASSES = ("spot")  # , "futures"
+class BinanceDataDumper:
+    _FUTURES_ASSET_CLASSES = ("um", "cm")
+    _ASSET_CLASSES = ("spot",)
     _DICT_DATA_TYPES_BY_ASSET = {
         "spot": ("aggTrades", "klines", "trades"),
-        # "futures": (),
+        "cm": ("aggTrades", "klines", "trades", "indexPriceKlines", "markPriceKlines", "premiumIndexKlines"),
+        "um": ("aggTrades", "klines", "trades", "indexPriceKlines", "markPriceKlines", "premiumIndexKlines", "metrics")
     }
+    _DATA_FREQUENCY_NEEDED_FOR_TYPE = ("klines", "indexPriceKlines", "markPriceKlines", "premiumIndexKlines")
+    _DATA_FREQUENCY_ENUM = ('1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '8h', '12h',
+                            '1d', '3d', '1w', '1mo')
 
     def __init__(
             self,
             path_dir_where_to_dump,
-            asset_class="spot",  # spot, futures
+            asset_class="spot",  # spot, um, cm
             data_type="klines",  # aggTrades, klines, trades
             data_frequency="1m",  # argument for data_type="klines"
     ) -> None:
@@ -47,32 +53,106 @@ class BinanceDataDumper():
                 Data frequency. [1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h]
                 Defaults to "1m".
         """
-        if asset_class not in self._ASSET_CLASSES:
+        if asset_class not in (self._ASSET_CLASSES + self._FUTURES_ASSET_CLASSES):
             raise ValueError(
                 f"Unknown asset class: {asset_class} "
-                f"not in {self._ASSET_CLASSES}")
+                f"not in {self._ASSET_CLASSES + self._FUTURES_ASSET_CLASSES}")
 
         if data_type not in self._DICT_DATA_TYPES_BY_ASSET[asset_class]:
             raise ValueError(
                 f"Unknown data type: {data_type} "
                 f"not in {self._DICT_DATA_TYPES_BY_ASSET[asset_class]}")
+
+        if data_type in self._DATA_FREQUENCY_NEEDED_FOR_TYPE:
+            if data_frequency not in self._DATA_FREQUENCY_ENUM:
+                raise ValueError(
+                    f"Unknown data frequency: {data_frequency} "
+                    f"not in {self._DATA_FREQUENCY_ENUM}")
+            self._data_frequency = data_frequency
+        else:
+            self._data_frequency = ""
+
         self.path_dir_where_to_dump = path_dir_where_to_dump
         self.dict_new_points_saved_by_ticker = defaultdict(dict)
         self._base_url = "https://data.binance.vision/data"
-        self._data_frequency = data_frequency
         self._asset_class = asset_class
         self._data_type = data_type
 
     def get_list_all_trading_pairs(self):
         """Get all trading pairs available at binance now"""
-        response = urllib.request.urlopen(
-            "https://api.binance.com/api/v3/exchangeInfo").read()
+
+        if self._asset_class == 'um':
+            response = urllib.request.urlopen("https://fapi.binance.com/fapi/v1/exchangeInfo").read()
+        elif self._asset_class == 'cm':
+            response = urllib.request.urlopen("https://dapi.binance.com/dapi/v1/exchangeInfo").read()
+        else:
+            response = urllib.request.urlopen("https://api.binance.com/api/v3/exchangeInfo").read()
+            return list(map(lambda symbol: symbol['symbol'], json.loads(response)['symbols']))
+
         return list(map(
             lambda symbol: symbol['symbol'],
             json.loads(response)['symbols']
         ))
 
-    def get_local_dir_to_data(self, ticker, timeperiod_per_file,):
+    def get_list_all_available_files(self, prefix=""):
+        """Get all available files from binance servers"""
+        url = os.path.join(self._base_url, prefix).replace("\\", "/").replace("data/", "?prefix=data/")
+        response = urllib.request.urlopen(url)
+        html_content = response.read().decode('utf-8')
+
+        # Extract the BUCKET_URL variable
+        bucket_url_pattern = re.compile(r"var BUCKET_URL = '(.*?)';")
+        match = bucket_url_pattern.search(html_content)
+
+        if match:
+            bucket_url = match.group(1) + "?delimiter=/&prefix=data/" + prefix.replace('\\', '/') + "/"
+
+            # Retrieve the content of the BUCKET_URL
+            bucket_response = urllib.request.urlopen(bucket_url)
+            bucket_content = bucket_response.read().decode('utf-8')
+
+            # Parse the XML content and extract all <Key> elements
+            root = ET.fromstring(bucket_content)
+            # Automatically retrieve the namespace
+            namespace = {'s3': root.tag.split('}')[0].strip('{')}
+            keys = [element.text for element in root.findall('.//s3:Key', namespace)]
+            return keys
+        else:
+            raise ValueError("BUCKET_URL not found")
+
+    def get_min_start_date_for_ticker(self, ticker):
+        """Get minimum start date for ticker"""
+        path_folder_prefix = self._get_path_suffix_to_dir_with_data("monthly", ticker)
+        min_date = datetime.datetime(datetime.datetime.today().year, datetime.datetime.today().month, 1)
+
+        try:
+            date_found = False
+
+            files = self.get_list_all_available_files(prefix=path_folder_prefix)
+            for file in files:
+                date_str = file.split('.')[0].split('-')[-2:]
+                date_str = '-'.join(date_str)
+                date_obj = datetime.datetime.strptime(date_str, '%Y-%m')
+                if date_obj < min_date:
+                    date_found = True
+                    min_date = date_obj
+
+            if not date_found:
+                path_folder_prefix = self._get_path_suffix_to_dir_with_data("daily", ticker)
+                files = self.get_list_all_available_files(prefix=path_folder_prefix)
+                for file in files:
+                    date_str = file.split('.')[0].split('-')[-3:]
+                    date_str = '-'.join(date_str)
+                    date_obj = datetime.datetime.strptime(date_str, '%Y-%m-%d')
+                    if date_obj < min_date:
+                        min_date = date_obj
+
+        except Exception as e:
+            LOGGER.error('Min date not found: ', e)
+
+        return min_date.date()
+
+    def get_local_dir_to_data(self, ticker, timeperiod_per_file):
         """Path to directory where ticker data is saved
 
         Args:
@@ -102,20 +182,7 @@ class BinanceDataDumper():
         else:
             str_date = date_obj.strftime("%Y-%m-%d")
 
-        if self._asset_class == "spot":
-            if self._data_type == "klines":
-                return f"{ticker}-{self._data_frequency}-{str_date}.{extension}"
-            elif self._data_type == "trades":
-                return f"{ticker}-trades-{str_date}.{extension}"
-            elif self._data_type == "aggTrades":
-                return f"{ticker}-aggTrades-{str_date}.{extension}"
-            else:
-                raise ValueError(
-                    f"There is no such data type as: {self._data_type} "
-                    "for spot data"
-                )
-        else:
-            raise NotImplemented("Sorry, futures are not supported yet!!!")
+        return f"{ticker}-{self._data_frequency if self._data_frequency else self._data_type}-{str_date}.{extension}"
 
     def get_all_dates_with_data_for_ticker(
             self,
@@ -268,18 +335,19 @@ class BinanceDataDumper():
             year=date_end.year, month=date_end.month, day=1)
         for ticker in tqdm(list_trading_pairs, leave=True, desc="Tickers"):
             # 1) Download all monthly data
-            self._download_data_for_1_ticker(
-                ticker,
-                date_start=date_start,
-                date_end=(date_end_first_day_of_month-relativedelta(days=1)),
-                timeperiod_per_file="monthly",
-                is_to_update_existing=is_to_update_existing,
-            )
+            if self._data_type != "metrics":
+                self._download_data_for_1_ticker(
+                    ticker,
+                    date_start=date_start,
+                    date_end=(date_end_first_day_of_month - relativedelta(days=1)),
+                    timeperiod_per_file="monthly",
+                    is_to_update_existing=is_to_update_existing,
+                )
             # 2) Download all daily date
             self._download_data_for_1_ticker(
                 ticker,
-                date_start=date_end_first_day_of_month,
-                date_end=(date_end-relativedelta(days=1)),
+                date_start=date_end_first_day_of_month if self._data_type != "metrics" else date_start,
+                date_end=(date_end - relativedelta(days=1)),
                 timeperiod_per_file="daily",
                 is_to_update_existing=is_to_update_existing,
             )
@@ -297,6 +365,14 @@ class BinanceDataDumper():
             is_to_update_existing=False,
     ):
         """Dump data for 1 ticker"""
+        min_start_date = self.get_min_start_date_for_ticker(ticker)
+        if date_start < min_start_date:
+            date_start = min_start_date
+            LOGGER.warning(
+                "Start date for ticker %s is %s",
+                ticker,
+                date_start.strftime("%Y%m%d")
+            )
         # Create list dates to use
         list_dates = self._create_list_dates_for_timeperiod(
             date_start,
@@ -331,7 +407,7 @@ class BinanceDataDumper():
             except FileExistsError:
                 pass
         #####
-        threads = min(len(list_args), 60)
+        threads = min(len(list_args), 1 if "trades" in self._data_type.lower() else 10)
         with WorkerPool(n_jobs=threads, start_method="threading") as pool:
             list_saved_dates = list(tqdm(
                 pool.imap_unordered(
@@ -340,7 +416,8 @@ class BinanceDataDumper():
                 ),
                 leave=False,
                 total=len(list_args),
-                desc=f"{timeperiod_per_file} files to download"
+                desc=f"{timeperiod_per_file} files to download",
+                unit="files"
             ))
         #####
         list_saved_dates = [date for date in list_saved_dates if date]
@@ -408,34 +485,41 @@ class BinanceDataDumper():
             str: suffix - https://data.binance.vision/data/ + suffix /filename
         """
         folder_path = ""
+        if self._asset_class in self._FUTURES_ASSET_CLASSES:
+            folder_path = os.path.join(folder_path, "futures")
         folder_path = os.path.join(folder_path, self._asset_class)
         folder_path = os.path.join(folder_path, timeperiod_per_file)
         folder_path = os.path.join(folder_path, self._data_type)
         folder_path = os.path.join(folder_path, ticker)
-        if self._asset_class == "spot":
-            if self._data_type == "klines":
-                folder_path = os.path.join(folder_path, self._data_frequency)
-            elif self._data_type == "trades":
-                pass
-            elif self._data_type == "aggTrades":
-                pass
-            else:
-                raise ValueError(
-                    f"There is no such data type as: {self._data_type} "
-                    "for spot data"
-                )
-        else:
-            raise NotImplemented("Sorry, futures are not supported yet!!!")
+
+        if self._data_frequency:
+            folder_path = os.path.join(folder_path, self._data_frequency)
+
         return folder_path
 
     @staticmethod
     def _download_raw_file(str_url_path_to_file, str_path_where_to_save):
         """Download file from binance server by URL"""
+
         LOGGER.debug("Download file from: %s", str_url_path_to_file)
         str_url_path_to_file = str_url_path_to_file.replace("\\", "/")
         try:
-            urllib.request.urlretrieve(
-                str_url_path_to_file, str_path_where_to_save)
+            if "trades" not in str_url_path_to_file.lower():
+                urllib.request.urlretrieve(str_url_path_to_file, str_path_where_to_save)
+            else:  # only show progress bar for trades data as the files are usually big
+                with tqdm(unit="B", unit_scale=True, miniters=1,
+                          desc="downloading: " + str_url_path_to_file.split("/")[-1]) as progress_bar:
+                    def progress_hook(count, block_size, total_size):
+                        current_size = block_size * count
+                        previous_progress = progress_bar.n / total_size * 100
+                        current_progress = current_size / total_size * 100
+
+                        if current_progress > previous_progress + 10:
+                            progress_bar.total = total_size
+                            progress_bar.update(current_size - progress_bar.n)
+
+                    urllib.request.urlretrieve(
+                        str_url_path_to_file, str_path_where_to_save, progress_hook)
         except urllib.error.URLError as ex:
             LOGGER.debug(
                 "[WARNING] File not found: %s", str_url_path_to_file)
@@ -463,8 +547,8 @@ class BinanceDataDumper():
             LOGGER.info(
                 "---> For %s new data saved for: %d months %d days",
                 ticker,
-                dict_stats["monthly"],
-                dict_stats["daily"],
+                dict_stats.get("monthly", 0),
+                dict_stats.get("daily", 0),
             )
 
     def _print_short_dump_statististics(self):
@@ -514,7 +598,6 @@ class BinanceDataDumper():
         """
         Create list of tickers for which to get data (by default all **USDT)
         """
-        LOGGER.info("Choose tickers to dump:")
         all_tickers = self.get_list_all_trading_pairs()
         LOGGER.info("---> Found overall tickers: %d", len(all_tickers))
 

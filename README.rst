@@ -65,8 +65,13 @@ Arguments:
 
 #. **path_dir_where_to_dump**:
     | (string) Path to folder where to dump the data
+#. **asset_class**:
+    | (string) Source of data: [spot, um, cm] um: usd(t) margined futures, cm: coin margined futures
 #. **data_type="klines"**:
-    | (string) data type to dump: [aggTrades, klines, trades]
+    | (string) data type to dump:
+    | [aggTrades, klines, trades] for spot
+    | [aggTrades, klines, trades, indexPriceKlines, markPriceKlines, premiumIndexKlines, metrics] for futures (metrics only supported for um)
+    | Refer to binance doc for additional info: https://github.com/binance/binance-public-data
 #. **str_data_frequency**:
     | (string) One of [1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h]
     | Frequency of price-volume data candles to get

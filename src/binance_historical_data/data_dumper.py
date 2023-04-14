@@ -416,7 +416,8 @@ class BinanceDataDumper:
                 ),
                 leave=False,
                 total=len(list_args),
-                desc=f"{timeperiod_per_file} files to download"
+                desc=f"{timeperiod_per_file} files to download",
+                unit="files"
             ))
         #####
         list_saved_dates = [date for date in list_saved_dates if date]
@@ -499,6 +500,7 @@ class BinanceDataDumper:
     @staticmethod
     def _download_raw_file(str_url_path_to_file, str_path_where_to_save):
         """Download file from binance server by URL"""
+
         LOGGER.debug("Download file from: %s", str_url_path_to_file)
         str_url_path_to_file = str_url_path_to_file.replace("\\", "/")
         try:
@@ -596,7 +598,6 @@ class BinanceDataDumper:
         """
         Create list of tickers for which to get data (by default all **USDT)
         """
-        LOGGER.info("Choose tickers to dump:")
         all_tickers = self.get_list_all_trading_pairs()
         LOGGER.info("---> Found overall tickers: %d", len(all_tickers))
 

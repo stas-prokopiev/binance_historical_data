@@ -1,8 +1,10 @@
 """Module with class to download candle historical data from binance"""
 # Standard library imports
 import os
+import re
 # from typing import Optional, Any, Union
 import urllib.request
+import xml.etree.ElementTree as ET
 import json
 import logging
 from collections import defaultdict
@@ -73,7 +75,6 @@ class BinanceDataDumper:
         self.path_dir_where_to_dump = path_dir_where_to_dump
         self.dict_new_points_saved_by_ticker = defaultdict(dict)
         self._base_url = "https://data.binance.vision/data"
-        self._data_frequency = data_frequency
         self._asset_class = asset_class
         self._data_type = data_type
 
@@ -93,7 +94,65 @@ class BinanceDataDumper:
             json.loads(response)['symbols']
         ))
 
-    def get_local_dir_to_data(self, ticker, timeperiod_per_file,):
+    def get_list_all_available_files(self, prefix=""):
+        """Get all available files from binance servers"""
+        url = os.path.join(self._base_url, prefix).replace("\\", "/").replace("data/", "?prefix=data/")
+        response = urllib.request.urlopen(url)
+        html_content = response.read().decode('utf-8')
+
+        # Extract the BUCKET_URL variable
+        bucket_url_pattern = re.compile(r"var BUCKET_URL = '(.*?)';")
+        match = bucket_url_pattern.search(html_content)
+
+        if match:
+            bucket_url = match.group(1) + "?delimiter=/&prefix=data/" + prefix.replace('\\', '/') + "/"
+
+            # Retrieve the content of the BUCKET_URL
+            bucket_response = urllib.request.urlopen(bucket_url)
+            bucket_content = bucket_response.read().decode('utf-8')
+
+            # Parse the XML content and extract all <Key> elements
+            root = ET.fromstring(bucket_content)
+            # Automatically retrieve the namespace
+            namespace = {'s3': root.tag.split('}')[0].strip('{')}
+            keys = [element.text for element in root.findall('.//s3:Key', namespace)]
+            return keys
+        else:
+            raise ValueError("BUCKET_URL not found")
+
+    def get_min_start_date_for_ticker(self, ticker):
+        """Get minimum start date for ticker"""
+        path_folder_prefix = self._get_path_suffix_to_dir_with_data("monthly", ticker)
+        min_date = datetime.datetime(datetime.datetime.today().year, datetime.datetime.today().month, 1)
+
+        try:
+            date_found = False
+
+            files = self.get_list_all_available_files(prefix=path_folder_prefix)
+            for file in files:
+                date_str = file.split('.')[0].split('-')[-2:]
+                date_str = '-'.join(date_str)
+                date_obj = datetime.datetime.strptime(date_str, '%Y-%m')
+                if date_obj < min_date:
+                    date_found = True
+                    min_date = date_obj
+
+            if not date_found:
+                path_folder_prefix = self._get_path_suffix_to_dir_with_data("daily", ticker)
+                files = self.get_list_all_available_files(prefix=path_folder_prefix)
+                for file in files:
+                    date_str = file.split('.')[0].split('-')[-3:]
+                    date_str = '-'.join(date_str)
+                    date_obj = datetime.datetime.strptime(date_str, '%Y-%m-%d')
+                    if date_obj < min_date:
+                        min_date = date_obj
+
+        except Exception as e:
+            LOGGER.error('Min date not found: ', e)
+
+        return min_date.date()
+
+    def get_local_dir_to_data(self, ticker, timeperiod_per_file):
         """Path to directory where ticker data is saved
 
         Args:
@@ -306,6 +365,14 @@ class BinanceDataDumper:
             is_to_update_existing=False,
     ):
         """Dump data for 1 ticker"""
+        min_start_date = self.get_min_start_date_for_ticker(ticker)
+        if date_start < min_start_date:
+            date_start = min_start_date
+            LOGGER.warning(
+                "Start date for ticker %s is %s",
+                ticker,
+                date_start.strftime("%Y%m%d")
+            )
         # Create list dates to use
         list_dates = self._create_list_dates_for_timeperiod(
             date_start,

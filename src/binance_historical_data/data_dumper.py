@@ -87,15 +87,13 @@ class BinanceDataDumper:
             response = urllib.request.urlopen("https://dapi.binance.com/dapi/v1/exchangeInfo").read()
         else:
             response = urllib.request.urlopen("https://api.binance.com/api/v3/exchangeInfo").read()
-            return list(map(lambda symbol: symbol['symbol'], json.loads(response)['symbols']))
-
         return list(map(
             lambda symbol: symbol['symbol'],
             json.loads(response)['symbols']
         ))
 
-    def get_list_all_available_files(self, prefix=""):
-        """Get all available files from binance servers"""
+    def _get_list_all_available_files(self, prefix=""):
+        """Get all available files from the binance servers"""
         url = os.path.join(self._base_url, prefix).replace("\\", "/").replace("data/", "?prefix=data/")
         response = urllib.request.urlopen(url)
         html_content = response.read().decode('utf-8')
@@ -128,7 +126,7 @@ class BinanceDataDumper:
         try:
             date_found = False
 
-            files = self.get_list_all_available_files(prefix=path_folder_prefix)
+            files = self._get_list_all_available_files(prefix=path_folder_prefix)
             for file in files:
                 date_str = file.split('.')[0].split('-')[-2:]
                 date_str = '-'.join(date_str)
@@ -139,7 +137,7 @@ class BinanceDataDumper:
 
             if not date_found:
                 path_folder_prefix = self._get_path_suffix_to_dir_with_data("daily", ticker)
-                files = self.get_list_all_available_files(prefix=path_folder_prefix)
+                files = self._get_list_all_available_files(prefix=path_folder_prefix)
                 for file in files:
                     date_str = file.split('.')[0].split('-')[-3:]
                     date_str = '-'.join(date_str)
@@ -344,9 +342,11 @@ class BinanceDataDumper:
                     is_to_update_existing=is_to_update_existing,
                 )
             # 2) Download all daily date
+            if self._data_type != "metrics":
+                date_start = date_end_first_day_of_month
             self._download_data_for_1_ticker(
                 ticker,
-                date_start=date_end_first_day_of_month if self._data_type != "metrics" else date_start,
+                date_start=date_start,
                 date_end=(date_end - relativedelta(days=1)),
                 timeperiod_per_file="daily",
                 is_to_update_existing=is_to_update_existing,
@@ -368,7 +368,7 @@ class BinanceDataDumper:
         min_start_date = self.get_min_start_date_for_ticker(ticker)
         if date_start < min_start_date:
             date_start = min_start_date
-            LOGGER.warning(
+            LOGGER.debug(
                 "Start date for ticker %s is %s",
                 ticker,
                 date_start.strftime("%Y%m%d")
@@ -618,7 +618,7 @@ class BinanceDataDumper:
         LOGGER.info("------> Tickers left: %d", len(tickers_to_use))
         #####
         if tickers_to_exclude:
-            LOGGER.info("---> Exclude asked tickers: %d", len(tickers_to_exclude))
+            LOGGER.info("---> Exclude the asked tickers: %d", len(tickers_to_exclude))
             tickers_to_use = [
                 ticker
                 for ticker in tickers_to_use

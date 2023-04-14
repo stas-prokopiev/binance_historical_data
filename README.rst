@@ -27,7 +27,7 @@ binance_historical_data is a python package (**py>=3.8**)
 which makes download of historical crypto data (prices and volumes) from binance server as simple as it can only be.
 **You don't even need to have an account at binance.com to download all history of crypto data**
 
-| Data is taken from here: https://data.binance.vision/?prefix=data/spot/
+| Data is taken from here: https://data.binance.vision/?prefix=data/
 | Dumped locally and then unzipped,
 | so you would have an identical local ready to use data copy
 
@@ -57,8 +57,9 @@ Initialize main object: **data_dumper**
 
     data_dumper = BinanceDataDumper(
         path_dir_where_to_dump=".",
+        asset_class="spot",  # spot, um, cm
         data_type="klines",  # aggTrades, klines, trades
-        data_frequency="1m",  # argument for data_type="klines"
+        data_frequency="1m",
     )
 
 Arguments:
@@ -174,6 +175,15 @@ Get all trading pairs (tickers) from binance
 .. code-block:: python
 
     print(data_dumper.get_list_all_trading_pairs())
+
+
+Get the first data when data for the ticker can be found
+----------------------------------------------------------
+
+.. code-block:: python
+
+    print(data_dumper.get_min_start_date_for_ticker())
+
 
 Get all tickers with locally saved data
 ----------------------------------------------------

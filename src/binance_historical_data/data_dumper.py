@@ -2,7 +2,6 @@
 # Standard library imports
 import os
 import re
-# from typing import Optional, Any, Union
 import urllib.request
 import xml.etree.ElementTree as ET
 import json
@@ -77,6 +76,81 @@ class BinanceDataDumper:
         self._base_url = "https://data.binance.vision/data"
         self._asset_class = asset_class
         self._data_type = data_type
+
+
+
+
+    @char
+    def dump_data(
+            self,
+            tickers=None,
+            date_start=None,
+            date_end=None,
+            is_to_update_existing=False,
+            int_max_tickers_to_get=None,
+            tickers_to_exclude=None,
+    ):
+        """Main method to dump new of update existing historical data
+
+        Args:
+            tickers (list[str]):\
+                list trading pairs for which to dump data\
+                by default all ****USDT pairs will be taken
+            tickers_to_exclude (list[str]):\
+                list trading pairs which to exclude from dump
+            date_start (datetime.date): Date from which to start dump
+            date_end (datetime.date): The last date for which to dump data
+            is_to_update_existing (bool): \
+                Flag if you want to update data if it's already exists
+            int_max_tickers_to_get (int): Max number of trading pairs to get
+        """
+        self.dict_new_points_saved_by_ticker.clear()
+        list_trading_pairs = self._get_list_trading_pairs_to_download(
+            tickers=tickers, tickers_to_exclude=tickers_to_exclude)
+        if int_max_tickers_to_get:
+            list_trading_pairs = list_trading_pairs[:int_max_tickers_to_get]
+        LOGGER.info(
+            "Download full data for %d tickers: ", len(list_trading_pairs))
+        LOGGER.info("---> Data Frequency: %s", self._data_frequency)
+        # Start date
+        if date_start is None:
+            date_start = datetime.date(year=2017, month=1, day=1)
+        if date_start < datetime.date(year=2017, month=1, day=1):
+            date_start = datetime.date(year=2017, month=1, day=1)
+        # End date
+        if date_end is None:
+            date_end = datetime.datetime.utcnow().date()
+        if date_end > datetime.datetime.utcnow().date():
+            date_end = datetime.datetime.utcnow().date()
+        LOGGER.info("---> Start Date: %s", date_start.strftime("%Y%m%d"))
+        LOGGER.info("---> End Date: %s", date_end.strftime("%Y%m%d"))
+        date_end_first_day_of_month = datetime.date(
+            year=date_end.year, month=date_end.month, day=1)
+        for ticker in tqdm(list_trading_pairs, leave=True, desc="Tickers"):
+            # 1) Download all monthly data
+            if self._data_type != "metrics":
+                self._download_data_for_1_ticker(
+                    ticker=ticker,
+                    date_start=date_start,
+                    date_end=(date_end_first_day_of_month - relativedelta(days=1)),
+                    timeperiod_per_file="monthly",
+                    is_to_update_existing=is_to_update_existing,
+                )
+            # 2) Download all daily date
+            if self._data_type == "metrics":
+                date_start_daily = date_start
+            else:
+                date_start_daily = date_end_first_day_of_month
+            self._download_data_for_1_ticker(
+                ticker=ticker,
+                date_start=date_start_daily,
+                date_end=(date_end - relativedelta(days=1)),
+                timeperiod_per_file="daily",
+                is_to_update_existing=is_to_update_existing,
+            )
+        #####
+        # Print statistics
+        self._print_dump_statistics()
 
     def get_list_all_trading_pairs(self):
         """Get all trading pairs available at binance now"""
@@ -199,8 +273,8 @@ class BinanceDataDumper:
         date_start = datetime.date(year=2017, month=1, day=1)
         date_end = datetime.datetime.utcnow().date()
         list_dates = self._create_list_dates_for_timeperiod(
-            date_start,
-            date_end,
+            date_start=date_start,
+            date_end=date_end,
             timeperiod_per_file=timeperiod_per_file,
         )
         list_dates_with_data = []
@@ -286,76 +360,6 @@ class BinanceDataDumper:
         )
 
     @char
-    def dump_data(
-            self,
-            tickers=None,
-            date_start=None,
-            date_end=None,
-            is_to_update_existing=False,
-            int_max_tickers_to_get=None,
-            tickers_to_exclude=None,
-    ):
-        """Main method to dump new of update existing historical data
-
-        Args:
-            tickers (list[str]):\
-                list trading pairs for which to dump data\
-                by default all ****USDT pairs will be taken
-            tickers_to_exclude (list[str]):\
-                list trading pairs which to exclude from dump
-            date_start (datetime.date): Date from which to start dump
-            date_end (datetime.date): The last date for which to dump data
-            is_to_update_existing (bool): \
-                Flag if you want to update data if it's already exists
-            int_max_tickers_to_get (int): Max number of trading pairs to get
-        """
-        self.dict_new_points_saved_by_ticker.clear()
-        list_trading_pairs = self._get_list_trading_pairs_to_download(
-            tickers=tickers, tickers_to_exclude=tickers_to_exclude)
-        if int_max_tickers_to_get:
-            list_trading_pairs = list_trading_pairs[:int_max_tickers_to_get]
-        LOGGER.info(
-            "Download full data for %d tickers: ", len(list_trading_pairs))
-        LOGGER.info("---> Data Frequency: %s", self._data_frequency)
-        # Start date
-        if date_start is None:
-            date_start = datetime.date(year=2017, month=1, day=1)
-        if date_start < datetime.date(year=2017, month=1, day=1):
-            date_start = datetime.date(year=2017, month=1, day=1)
-        # End date
-        if date_end is None:
-            date_end = datetime.datetime.utcnow().date()
-        if date_end > datetime.datetime.utcnow().date():
-            date_end = datetime.datetime.utcnow().date()
-        LOGGER.info("---> Start Date: %s", date_start.strftime("%Y%m%d"))
-        LOGGER.info("---> End Date: %s", date_end.strftime("%Y%m%d"))
-        date_end_first_day_of_month = datetime.date(
-            year=date_end.year, month=date_end.month, day=1)
-        for ticker in tqdm(list_trading_pairs, leave=True, desc="Tickers"):
-            # 1) Download all monthly data
-            if self._data_type != "metrics":
-                self._download_data_for_1_ticker(
-                    ticker,
-                    date_start=date_start,
-                    date_end=(date_end_first_day_of_month - relativedelta(days=1)),
-                    timeperiod_per_file="monthly",
-                    is_to_update_existing=is_to_update_existing,
-                )
-            # 2) Download all daily date
-            if self._data_type != "metrics":
-                date_start = date_end_first_day_of_month
-            self._download_data_for_1_ticker(
-                ticker,
-                date_start=date_start,
-                date_end=(date_end - relativedelta(days=1)),
-                timeperiod_per_file="daily",
-                is_to_update_existing=is_to_update_existing,
-            )
-        #####
-        # Print statistics
-        self._print_dump_statistics()
-
-    @char
     def _download_data_for_1_ticker(
             self,
             ticker,
@@ -366,6 +370,11 @@ class BinanceDataDumper:
     ):
         """Dump data for 1 ticker"""
         min_start_date = self.get_min_start_date_for_ticker(ticker)
+        LOGGER.debug(
+            "Min Start date for ticker %s is %s",
+            ticker,
+            min_start_date.strftime("%Y%m%d")
+        )
         if date_start < min_start_date:
             date_start = min_start_date
             LOGGER.debug(
@@ -375,14 +384,16 @@ class BinanceDataDumper:
             )
         # Create list dates to use
         list_dates = self._create_list_dates_for_timeperiod(
-            date_start,
+            date_start=date_start,
             date_end=date_end,
             timeperiod_per_file=timeperiod_per_file,
         )
+        LOGGER.debug("Created dates to dump data: %d", len(list_dates))
         list_dates_with_data = self.get_all_dates_with_data_for_ticker(
             ticker,
             timeperiod_per_file=timeperiod_per_file
         )
+        LOGGER.debug("Dates with data found: %d", len(list_dates_with_data))
         if is_to_update_existing:
             list_dates_cleared = list_dates
         else:
@@ -397,18 +408,21 @@ class BinanceDataDumper:
             for date_obj in list_dates_cleared
         ]
         # 2) Create path to file where to save data
-        str_dir_where_to_save = self.get_local_dir_to_data(
+        dir_where_to_save = self.get_local_dir_to_data(
             ticker,
             timeperiod_per_file=timeperiod_per_file,
         )
-        if not os.path.exists(str_dir_where_to_save):
+        LOGGER.debug("Local dir to where dump: %s", dir_where_to_save)
+        if not os.path.exists(dir_where_to_save):
             try:
-                os.makedirs(str_dir_where_to_save)
+                os.makedirs(dir_where_to_save)
             except FileExistsError:
                 pass
         #####
-        threads = min(len(list_args), 1 if "trades" in self._data_type.lower() else 10)
-        with WorkerPool(n_jobs=threads, start_method="threading") as pool:
+        processes = min(len(list_args), 1 if "trades" in self._data_type.lower() else 10)
+        # with WorkerPool(n_jobs=threads, start_method="threading") as pool:
+        # with WorkerPool(n_jobs=processes, use_dill=True) as pool:
+        with WorkerPool(n_jobs=processes) as pool:
             list_saved_dates = list(tqdm(
                 pool.imap_unordered(
                     self._download_data_for_1_ticker_1_date,
@@ -637,6 +651,8 @@ class BinanceDataDumper:
         list_dates = []
         if date_end is None:
             date_end = datetime.datetime.utcnow().date
+        LOGGER.debug(
+            "Create dates to dump data for: %s -> %s", date_start, date_end)
         #####
         date_to_use = date_start
         while date_to_use <= date_end:
@@ -645,4 +661,5 @@ class BinanceDataDumper:
                 date_to_use = date_to_use + relativedelta(months=1)
             else:
                 date_to_use = date_to_use + relativedelta(days=1)
+        LOGGER.debug("---> Dates created: %d", len(list_dates))
         return list_dates

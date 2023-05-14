@@ -154,17 +154,34 @@ class BinanceDataDumper:
 
     def get_list_all_trading_pairs(self):
         """Get all trading pairs available at binance now"""
-
-        if self._asset_class == 'um':
-            response = urllib.request.urlopen("https://fapi.binance.com/fapi/v1/exchangeInfo").read()
-        elif self._asset_class == 'cm':
-            response = urllib.request.urlopen("https://dapi.binance.com/dapi/v1/exchangeInfo").read()
+        # Select the right Top Level Domain for US/non US
+        country_code = self._get_user_country_from_ip()
+        if country_code == "US":
+            tld = "us"
         else:
-            response = urllib.request.urlopen("https://api.binance.com/api/v3/exchangeInfo").read()
+            tld = "com"
+        #####
+        if self._asset_class == 'um':
+            response = urllib.request.urlopen(f"https://fapi.binance.{tld}/fapi/v1/exchangeInfo").read()
+        elif self._asset_class == 'cm':
+            response = urllib.request.urlopen(f"https://dapi.binance.{tld}/dapi/v1/exchangeInfo").read()
+        else:
+            # https://api.binance.us/api/v3/exchangeInfo
+            response = urllib.request.urlopen(f"https://api.binance.{tld}/api/v3/exchangeInfo").read()
         return list(map(
             lambda symbol: symbol['symbol'],
             json.loads(response)['symbols']
         ))
+
+    @staticmethod
+    def _get_user_country_from_ip() -> str:
+        """Get user country to select the right binance url"""
+        url = 'https://ipinfo.io/json'
+        res = urllib.request.urlopen(url)
+        data = json.load(res)
+        return data.get("country", "Unknown")
+
+
 
     def _get_list_all_available_files(self, prefix=""):
         """Get all available files from the binance servers"""

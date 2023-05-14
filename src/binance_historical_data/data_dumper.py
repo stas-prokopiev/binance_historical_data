@@ -111,6 +111,15 @@ class BinanceDataDumper:
             list_trading_pairs = list_trading_pairs[:int_max_tickers_to_get]
         LOGGER.info(
             "Download full data for %d tickers: ", len(list_trading_pairs))
+
+
+        LOGGER.info(
+            "---> Data will be saved here: %s",
+            os.path.join(os.path.abspath(self.path_dir_where_to_dump), self._asset_class))
+
+
+
+
         LOGGER.info("---> Data Frequency: %s", self._data_frequency)
         # Start date
         if date_start is None:

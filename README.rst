@@ -110,7 +110,7 @@ Arguments:
 2) Delete outdated daily results
 ----------------------------------------------------
 
-Deleta all daily data for which full month monthly data was already dumped
+Delete all daily data for which full month monthly data was already dumped
 
 .. code-block:: python
 

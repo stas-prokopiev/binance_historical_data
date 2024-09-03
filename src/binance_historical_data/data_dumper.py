@@ -128,9 +128,9 @@ class BinanceDataDumper:
             date_start = datetime.date(year=2017, month=1, day=1)
         # End date
         if date_end is None:
-            date_end = datetime.datetime.utcnow().date()
-        if date_end > datetime.datetime.utcnow().date():
-            date_end = datetime.datetime.utcnow().date()
+            date_end = datetime.datetime.utcnow().date() - relativedelta(days=1)
+        if date_end > datetime.datetime.utcnow().date()  - relativedelta(days=1):
+            date_end = datetime.datetime.utcnow().date()  - relativedelta(days=1)
         LOGGER.info("---> Start Date: %s", date_start.strftime("%Y%m%d"))
         LOGGER.info("---> End Date: %s", date_end.strftime("%Y%m%d"))
         date_end_first_day_of_month = datetime.date(
@@ -153,7 +153,7 @@ class BinanceDataDumper:
             self._download_data_for_1_ticker(
                 ticker=ticker,
                 date_start=date_start_daily,
-                date_end=(date_end - relativedelta(days=1)),
+                date_end=date_end,
                 timeperiod_per_file="daily",
                 is_to_update_existing=is_to_update_existing,
             )

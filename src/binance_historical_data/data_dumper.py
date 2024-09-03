@@ -137,7 +137,7 @@ class BinanceDataDumper:
             year=date_end.year, month=date_end.month, day=1)
         for ticker in tqdm(list_trading_pairs, leave=True, desc="Tickers"):
             # 1) Download all monthly data
-            if self._data_type != "metrics":
+            if self._data_type != "metrics" and (date_end_first_day_of_month - relativedelta(days=1) > date_start):
                 self._download_data_for_1_ticker(
                     ticker=ticker,
                     date_start=date_start,

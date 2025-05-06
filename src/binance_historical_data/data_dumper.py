@@ -135,28 +135,55 @@ class BinanceDataDumper:
         LOGGER.info("---> End Date: %s", date_end.strftime("%Y%m%d"))
         date_end_first_day_of_month = datetime.date(
             year=date_end.year, month=date_end.month, day=1)
+        
         for ticker in tqdm(list_trading_pairs, leave=True, desc="Tickers"):
             # 1) Download all monthly data
-            if self._data_type != "metrics" and (date_end_first_day_of_month - relativedelta(days=1) > date_start):
+            # Monthly data will not be available for current month; Retrieve up till previous month if end date is in current month
+            # Otherwise no changes to end_date; 
+            # Note: if end date resides in an available monthly data, monthly data will be downloaded instead
+            # of multiple daily data.
+            
+            monthly_end_date = date_end
+            if self._data_type != "metrics":
+                if (date_end.year == datetime.datetime.now(datetime.timezone.utc).year and date_end.month == datetime.datetime.now(datetime.timezone.utc).month) \
+                    (date_end_first_day_of_month - relativedelta(days=1) > date_start):
+                    monthly_end_date = date_end_first_day_of_month - relativedelta(days=1)
+                    
                 self._download_data_for_1_ticker(
-                    ticker=ticker,
-                    date_start=date_start,
-                    date_end=(date_end_first_day_of_month - relativedelta(days=1)),
-                    timeperiod_per_file="monthly",
-                    is_to_update_existing=is_to_update_existing,
-                )
+                        ticker=ticker,
+                        date_start=date_start,
+                        date_end=monthly_end_date,
+                        timeperiod_per_file="monthly",
+                        is_to_update_existing=is_to_update_existing,
+                    )
+            # if the latest downloded monthly data does not match requested monthly end date
+            # means monthly data is not yet available for previous month, include in daily data
+            
             # 2) Download all daily date
             if self._data_type == "metrics":
                 date_start_daily = date_start
             else:
-                date_start_daily = date_end_first_day_of_month
-            self._download_data_for_1_ticker(
-                ticker=ticker,
-                date_start=date_start_daily,
-                date_end=date_end,
-                timeperiod_per_file="daily",
-                is_to_update_existing=is_to_update_existing,
-            )
+                latest_monthly_data_date = self.get_latest_downloaded_date_for_ticker(ticker=ticker)
+                # if the latest downloded monthly data does not match requested monthly end date
+                # means monthly data is not yet available for previous month, include in daily data
+                # otherwise, we will simply set start date to a day after and do a bounds check before
+                # dumping data.
+                if latest_monthly_data_date != datetime.date.min:
+                    if latest_monthly_data_date < monthly_end_date:
+                        date_start_daily = monthly_end_date + relativedelta(days=1)
+                    else:
+                        date_start_daily = date_end + relativedelta(days=1)
+                else:
+                    date_start_daily = date_end_first_day_of_month
+            
+            if date_start_daily <= date_end:  
+                self._download_data_for_1_ticker(
+                    ticker=ticker,
+                    date_start=date_start_daily,
+                    date_end=date_end,
+                    timeperiod_per_file="daily",
+                    is_to_update_existing=is_to_update_existing,
+                )
         #####
         # Print statistics
         self._print_dump_statistics()
@@ -218,6 +245,31 @@ class BinanceDataDumper:
         else:
             raise ValueError("BUCKET_URL not found")
 
+    def get_latest_downloaded_date_for_ticker(self, ticker):
+        """Get latest downloaded date for ticker
+        Returns last day of the latest downloaded monthly data        
+        """
+        path_folder_prefix = self._get_path_suffix_to_dir_with_data("monthly", ticker)
+        latest_date = datetime.date.min
+        
+        try:
+            files = self._get_list_all_available_files(prefix=path_folder_prefix)
+            for file in files:
+                date_str = file.split('.')[0].split('-')[-2:]
+                date_str = '-'.join(date_str)
+                date_obj = datetime.datetime.strptime(date_str, '%Y-%m').date()
+                if date_obj > latest_date:
+                    latest_date = date_obj
+            
+        except Exception as e:
+            LOGGER.error('Latest date not found: ', e)
+        
+        if latest_date == datetime.date.min:
+            return latest_date
+        
+        
+        return latest_date + relativedelta(months=1) - relativedelta(days=1)
+    
     def get_min_start_date_for_ticker(self, ticker):
         """Get minimum start date for ticker"""
         path_folder_prefix = self._get_path_suffix_to_dir_with_data("monthly", ticker)
